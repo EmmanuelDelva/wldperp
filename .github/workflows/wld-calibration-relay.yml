@@ -1,0 +1,118 @@
+name: WLD Calibration Public Relay
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Deep calibration uses completed-month data. Run once after month close.
+    - cron: '17 12 2 * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/public-relay-trigger.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wld-calibration-public-relay
+  cancel-in-progress: true
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Require private-repository credential
+        shell: bash
+        env:
+          PRIVATE_REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PRIVATE_REPO_TOKEN" || {
+            echo 'PRIVATE_REPO_TOKEN is not configured.' >&2
+            echo 'See SETUP.md. No private repository access was attempted.' >&2
+            exit 2
+          }
+
+      - name: Checkout private WLD Sentinel source
+        uses: actions/checkout@v6
+        with:
+          repository: EmmanuelDelva/claude-work
+          ref: agent/wld-sentinel-ios-v1
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: private
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install private calibration backend
+        shell: bash
+        run: python -m pip install -e './private/wld-sentinel-ios/backend[dev]'
+
+      - name: Run private v3.1 calibration and verification
+        shell: bash
+        working-directory: private/wld-sentinel-ios/backend
+        run: |
+          set -euo pipefail
+          OUT='../calibration-results/v31/latest'
+          mkdir -p "$OUT"
+          # Keep verbose strategy/calibration output out of public Actions logs.
+          python tools/run_calibration_v31.py \
+            --output-dir "$OUT" \
+            --cost-bps 12 \
+            > "$OUT/calibration_v31_runner.log" 2>&1
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('../calibration-results/v31/latest/calibration_verification_manifest_v31.json')
+          d = json.loads(p.read_text(encoding='utf-8'))
+          assert d['passed'] is True
+          assert d['real_money_enabled'] is False
+          assert d['automatic_policy_mutation'] is False
+          print('PRIVATE_CALIBRATION_VERIFIED')
+          PY
+
+      - name: Commit verified evidence back to a private audit branch
+        shell: bash
+        working-directory: private
+        run: |
+          set -euo pipefail
+          RESULT_DIR='wld-sentinel-ios/calibration-results/v31/latest'
+
+          # Never push verbose execution output to Git.
+          rm -f "$RESULT_DIR/calibration_v31_runner.log"
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('wld-sentinel-ios/calibration-results/v31/latest/calibration_verification_manifest_v31.json')
+          d = json.loads(p.read_text(encoding='utf-8'))
+          assert d['passed'] is True
+          assert d['real_money_enabled'] is False
+          assert d['automatic_policy_mutation'] is False
+          PY
+
+          git config user.name 'wld-calibration-public-relay'
+          git config user.email 'actions@users.noreply.github.com'
+          RESULT_BRANCH="calibration/v31-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$RESULT_BRANCH"
+          git add "$RESULT_DIR"
+          git diff --cached --quiet && {
+            echo 'Verified calibration produced no evidence changes.'
+            exit 0
+          }
+          git commit -m "WLD calibration v3.1 verified evidence ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          git push origin "HEAD:refs/heads/$RESULT_BRANCH"
+          echo "VERIFIED_PRIVATE_RESULT_BRANCH=$RESULT_BRANCH"
+
+      - name: Public relay safety assertion
+        shell: bash
+        run: |
+          echo 'PASS: compute completed; evidence remains in the private repository.'
+          echo 'PASS: no live trading was enabled.'
