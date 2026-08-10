@@ -1,0 +1,3 @@
+triggered_at=2026-08-09T22:27:00-06:00
+purpose=validate-public-zero-cost-runner-before-private-secret
+requested_by=ChatGPT-GitHub-connector
