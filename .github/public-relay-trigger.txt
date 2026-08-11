@@ -1,3 +1,3 @@
-triggered_at=2026-08-10T22:18:00-06:00
-purpose=capture-private-swing-1w-integrity-reason
+triggered_at=2026-08-10T22:25:00-06:00
+purpose=run-v31-with-calendar-derived-weekly-parity
 requested_by=ChatGPT-GitHub-connector
