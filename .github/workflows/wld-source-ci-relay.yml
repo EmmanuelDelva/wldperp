@@ -54,6 +54,33 @@ jobs:
         working-directory: private/wld-sentinel-ios/backend
         run: python -m pytest -q
 
+      - name: Smoke test fresh forward shadow against Binance public data
+        shell: bash
+        working-directory: private/wld-sentinel-ios/backend
+        env:
+          APP_ENV: development
+          TRADING_MODE: analysis
+          FORWARD_SHADOW_ENABLED: 'true'
+          BINANCE_API_KEY: ''
+          BINANCE_API_SECRET: ''
+        run: |
+          python - <<'PY'
+          import asyncio
+          from app.forward_shadow import collect_forward_shadow
+
+          result = asyncio.run(collect_forward_shadow())
+          assert result.get('enabled') is True
+          assert result.get('status') == 'ACTIVE_FRESH_MARKET_SHADOW', result.get('status')
+          assert result.get('can_execute_orders') is False
+          assert result.get('real_money_enabled') is False
+          assert result.get('automatic_live_enabled') is False
+          assert result.get('historical_promotion_allowed') is False
+          assert result.get('automatic_policy_mutation') is False
+          assert result.get('base_calendar_aligned') is True
+          assert result.get('btc_calendar_aligned') is True
+          print('PASS: fresh forward market shadow rebuilt from Binance; execution remains disabled.')
+          PY
+
       - name: Build deployment container
         shell: bash
         run: docker build -t wld-sentinel-ci ./private/wld-sentinel-ios
@@ -61,5 +88,5 @@ jobs:
       - name: Safety assertion
         shell: bash
         run: |
-          echo 'PASS: private source tests and container build completed.'
-          echo 'PASS: no private artifact or trading credential was published.'
+          echo 'PASS: private source tests, fresh-shadow smoke test and container build completed.'
+          echo 'PASS: no private artifact, trade signal or trading credential was published.'
