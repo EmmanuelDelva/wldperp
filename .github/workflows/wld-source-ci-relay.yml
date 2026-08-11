@@ -35,7 +35,7 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private
           fetch-depth: 1
-          persist-credentials: false
+          persist-credentials: true
           sparse-checkout: |
             wld-sentinel-ios
           sparse-checkout-cone-mode: true
