@@ -1,3 +1,3 @@
-triggered_at=2026-08-10T23:18:00-06:00
-purpose=validate-latest-private-pwa-research-lab-and-cloud-container
+triggered_at=2026-08-10T23:23:00-06:00
+purpose=retry-latest-private-pwa-research-lab-and-cloud-container-after-checkout-fix
 requested_by=ChatGPT-GitHub-connector
