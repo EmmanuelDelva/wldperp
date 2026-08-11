@@ -54,7 +54,7 @@ jobs:
         working-directory: private/wld-sentinel-ios/backend
         run: python -m pytest -q
 
-      - name: Smoke test fresh forward shadow against Binance public data
+      - name: Smoke test fresh forward shadow against official Binance public data
         shell: bash
         working-directory: private/wld-sentinel-ios/backend
         env:
@@ -66,9 +66,10 @@ jobs:
         run: |
           python - <<'PY'
           import asyncio
-          from app.forward_shadow import collect_forward_shadow
+          from app.forward_shadow_service import ForwardShadowService
 
-          result = asyncio.run(collect_forward_shadow())
+          service = ForwardShadowService()
+          result = asyncio.run(service.refresh())
           assert result.get('enabled') is True
           assert result.get('status') == 'ACTIVE_FRESH_MARKET_SHADOW', result.get('status')
           assert result.get('can_execute_orders') is False
@@ -78,7 +79,8 @@ jobs:
           assert result.get('automatic_policy_mutation') is False
           assert result.get('base_calendar_aligned') is True
           assert result.get('btc_calendar_aligned') is True
-          print('PASS: fresh forward market shadow rebuilt from Binance; execution remains disabled.')
+          assert result.get('source', '').startswith('Binance')
+          print('PASS: fresh forward shadow rebuilt from official Binance data with geo-safe fallback; execution remains disabled.')
           PY
 
       - name: Build deployment container
