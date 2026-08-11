@@ -61,11 +61,39 @@ jobs:
           set -euo pipefail
           OUT='../calibration-results/v31/latest'
           mkdir -p "$OUT"
+
           # Keep verbose strategy/calibration output out of public Actions logs.
+          set +e
           python tools/run_calibration_v31.py \
             --output-dir "$OUT" \
             --cost-bps 12 \
             > "$OUT/calibration_v31_runner.log" 2>&1
+          CAL_RC=$?
+          set -e
+
+          if [ "$CAL_RC" -ne 0 ]; then
+            # Expose only the deliberately sanitized status record. Never print
+            # the private runner log, market metrics, strategy parameters or signals.
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('../calibration-results/v31/latest/calibration_run_status_v31.json')
+          if p.exists():
+              d = json.loads(p.read_text(encoding='utf-8'))
+              safe = {
+                  'stage': d.get('stage'),
+                  'state': d.get('state'),
+                  'exception_type': d.get('exception_type'),
+                  'returncode': d.get('returncode'),
+                  'real_money_enabled': d.get('real_money_enabled'),
+                  'automatic_policy_mutation': d.get('automatic_policy_mutation'),
+              }
+          else:
+              safe = {'stage': 'unknown', 'state': 'failed', 'status_record_missing': True}
+          print('SANITIZED_CALIBRATION_FAILURE=' + json.dumps(safe, separators=(',', ':')))
+          PY
+            exit "$CAL_RC"
+          fi
 
           python - <<'PY'
           import json
