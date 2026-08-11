@@ -83,6 +83,7 @@ jobs:
               safe = {
                   'stage': d.get('stage'),
                   'state': d.get('state'),
+                  'diagnostic_code': d.get('diagnostic_code'),
                   'exception_type': d.get('exception_type'),
                   'returncode': d.get('returncode'),
                   'real_money_enabled': d.get('real_money_enabled'),
