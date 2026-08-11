@@ -1,66 +1,49 @@
-# One-time setup for `EmmanuelDelva/wldperp`
+# Zero-cost public relay setup
 
-The public relay repository is already created. The only remaining manual security step is to add one fine-grained GitHub token as an Actions secret. **Do not paste the token into chat or commit it to Git.**
+Status: **configured and validated**.
 
-## 1. Create a fine-grained personal access token
+`EmmanuelDelva/wldperp` is the public GitHub-hosted compute relay for the private WLD Sentinel calibration pipeline.
 
-In GitHub, create a fine-grained personal access token restricted to repository:
+## Credential
 
-`EmmanuelDelva/claude-work`
-
-Required repository permission:
-
-- **Contents: Read and write**
-
-Do not grant organization/admin permissions and do not include unrelated repositories.
-
-The write permission is required only because a verified calibration writes compact evidence back to a new private audit branch. The workflow never writes to `main`.
-
-## 2. Add it as an Actions repository secret
-
-Open:
-
-`EmmanuelDelva/wldperp` → **Settings → Secrets and variables → Actions → New repository secret**
-
-Name:
+The repository secret is named:
 
 `PRIVATE_REPO_TOKEN`
 
-Value:
+It must remain a fine-grained token restricted to `EmmanuelDelva/claude-work` only, with repository **Contents: Read and write**. Never commit or paste it into issues, chat, workflow YAML, source code or logs.
 
-Your fine-grained token.
+The public workflow has already validated that it can:
 
-## 3. Run the relay
+1. pass the secret gate;
+2. checkout private branch `agent/wld-sentinel-ios-v1`;
+3. run the complete v3.1 research pipeline on a public GitHub-hosted runner;
+4. verify the independent manifest;
+5. write compact evidence back to a new private audit branch;
+6. keep real-money trading disabled.
 
-Open:
+## Triggers
 
-**Actions → WLD Calibration Public Relay → Run workflow**
+- Manual: Actions → `WLD Calibration Public Relay` → Run workflow.
+- Automatic: day 2 of each month at 12:17 UTC.
+- ChatGPT/automation relay: update `.github/public-relay-trigger.txt`.
 
-The workflow also runs automatically on day 2 of each month at 12:17 UTC.
+## Output
 
-## 4. Expected behavior
+Successful runs write evidence only to the private repository using:
 
-The public runner:
+`calibration/v31-public-<run-id>-<attempt>`
 
-1. receives no Binance trading credentials;
-2. checks out private WLD Sentinel code ephemerally;
-3. installs the private backend on the temporary runner;
-4. runs v3.1 parity, split, policy and empirical calibration checks;
-5. performs actual-funding and cost-stress evaluation;
-6. independently verifies the evidence;
-7. deletes verbose runner output before publishing;
-8. pushes verified compact evidence to a new private branch named `calibration/v31-public-<run-id>-<attempt>`;
-9. exposes only PASS/FAIL and that private branch identifier in public logs;
-10. never enables live trading.
+Failed runs can write detailed diagnostics only to the private repository using:
 
-## 5. What to verify after a successful run
+`diagnostics/v31-public-<run-id>-<attempt>`
 
-In the private result branch require:
+Public logs expose no strategy metrics, entries, stops, targets or account data.
 
-- `calibration_verification_manifest_v31.json` has `passed: true`;
-- `real_money_enabled` is `false`;
-- `automatic_policy_mutation` is `false`;
-- report/review SHA-256 values are present;
-- any profile promoted by the historical review is at most `FORWARD_SHADOW_CANDIDATE`.
+## Security invariants
 
-The private WLD Sentinel policy remains authoritative. Historical calibration cannot authorize a real-money trade.
+- No Binance trading credentials are required or accepted by this relay.
+- No `pull_request` or `pull_request_target` secret-bearing trigger exists.
+- Public `GITHUB_TOKEN` remains read-only.
+- Core GitHub actions are pinned to reviewed commit SHAs.
+- Only `wld-sentinel-ios` is sparse-checked out from the private repository.
+- A successful historical review cannot enable live trading or mutate the private calibration policy automatically.
