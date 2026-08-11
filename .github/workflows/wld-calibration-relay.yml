@@ -72,8 +72,7 @@ jobs:
           set -e
 
           if [ "$CAL_RC" -ne 0 ]; then
-            # Expose only the deliberately sanitized status record. Never print
-            # the private runner log, market metrics, strategy parameters or signals.
+            # Expose only the deliberately sanitized status record publicly.
             python - <<'PY'
           import json
           from pathlib import Path
@@ -93,6 +92,22 @@ jobs:
               safe = {'stage': 'unknown', 'state': 'failed', 'status_record_missing': True}
           print('SANITIZED_CALIBRATION_FAILURE=' + json.dumps(safe, separators=(',', ':')))
           PY
+
+            # Preserve the detailed diagnostic log only in the private repo.
+            ROOT="$(git rev-parse --show-toplevel)"
+            DIAG_REL="wld-sentinel-ios/calibration-diagnostics/v31/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            mkdir -p "$ROOT/$DIAG_REL"
+            cp "$OUT/calibration_v31_runner.log" "$ROOT/$DIAG_REL/calibration_v31_runner.log"
+            cp "$OUT/calibration_run_status_v31.json" "$ROOT/$DIAG_REL/calibration_run_status_v31.json"
+            cd "$ROOT"
+            git config user.name 'wld-calibration-public-relay'
+            git config user.email 'actions@users.noreply.github.com'
+            DIAG_BRANCH="diagnostics/v31-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            git switch -c "$DIAG_BRANCH" >/dev/null 2>&1
+            git add "$DIAG_REL"
+            git commit -q -m "WLD v3.1 private diagnostic ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+            git push --quiet origin "HEAD:refs/heads/$DIAG_BRANCH"
+            echo "PRIVATE_DIAGNOSTIC_BRANCH=$DIAG_BRANCH"
             exit "$CAL_RC"
           fi
 
