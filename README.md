@@ -1,6 +1,14 @@
 # WLD Calibration Public Relay
 
-Public, zero-cost GitHub Actions compute relay for the **private** WLD Sentinel calibration pipeline.
+Public, zero-cost GitHub-hosted compute relay for the **private** WLD Sentinel calibration pipeline.
+
+## Status
+
+**Operational and validated end-to-end.**
+
+Validated hardened run: `31459101281`.
+
+The relay successfully checks out only `wld-sentinel-ios` from the private repository, runs the complete v3.1 research/verification pipeline, and writes verified evidence back to a private audit branch. No user PC needs to remain powered on.
 
 ## Purpose
 
@@ -29,8 +37,9 @@ The workflow runs on GitHub-hosted `ubuntu-latest` from this **public** reposito
 
 - Manual: **Actions → WLD Calibration Public Relay → Run workflow**.
 - Automatic deep recalibration: day 2 of each month at 12:17 UTC, using completed-month data.
+- Controlled relay trigger: update `.github/public-relay-trigger.txt`.
 
-The public workflow has deliberately **no** `pull_request` or `pull_request_target` trigger.
+The public workflow has deliberately **no** `pull_request` or `pull_request_target` trigger. Core GitHub actions are pinned to reviewed commit SHAs and the private checkout uses sparse checkout limited to `wld-sentinel-ios`.
 
 ## Verification pipeline
 
@@ -46,7 +55,7 @@ The private v3.1 orchestrator performs:
 8. deterministic forward-shadow promotion review;
 9. independent verification manifest and SHA-256 evidence.
 
-A successful historical result may at most become `FORWARD_SHADOW_CANDIDATE`. This relay cannot enable real-money trading and cannot mutate the private live policy automatically.
+A successful historical verification does not imply a profitable strategy and cannot enable real-money trading. Promotion gates remain authoritative and this relay cannot mutate the private live policy automatically.
 
 ## Private destination
 
@@ -54,6 +63,10 @@ Each verified run creates a new branch in `EmmanuelDelva/claude-work`:
 
 `calibration/v31-public-<run-id>-<attempt>`
 
-Only compact verified evidence is committed. Verbose runner logs are not pushed back.
+Failed runs can publish detailed diagnostics only to a private branch:
 
-See `SETUP.md` for the one-time private credential setup and `SECURITY.md` for the public/private boundary.
+`diagnostics/v31-public-<run-id>-<attempt>`
+
+Public logs expose no strategy metrics or trading credentials.
+
+See `SETUP.md` for credential/security status and `SECURITY.md` for the public/private boundary.
