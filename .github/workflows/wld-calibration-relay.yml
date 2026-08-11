@@ -36,17 +36,22 @@ jobs:
           }
 
       - name: Checkout private WLD Sentinel source
-        uses: actions/checkout@v6
+        # actions/checkout v6 pinned to the exact reviewed commit from the green run.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: EmmanuelDelva/claude-work
           ref: agent/wld-sentinel-ios-v1
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: true
+          sparse-checkout: |
+            wld-sentinel-ios
+          sparse-checkout-cone-mode: true
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        # actions/setup-python v6 pinned to the exact reviewed commit from the green run.
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
 
