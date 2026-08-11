@@ -1,0 +1,146 @@
+name: WLD v3.2 Research Public Relay
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run after completed-month archives have settled; v3.1 remains separate.
+    - cron: '27 12 3 * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/v32-relay-trigger.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wld-v32-research-public-relay
+  cancel-in-progress: true
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Require private-repository credential
+        shell: bash
+        env:
+          PRIVATE_REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$PRIVATE_REPO_TOKEN" || {
+            echo 'PRIVATE_REPO_TOKEN is not configured.' >&2
+            exit 2
+          }
+
+      - name: Checkout private WLD Sentinel source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: EmmanuelDelva/claude-work
+          ref: agent/wld-sentinel-ios-v1
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: private
+          fetch-depth: 1
+          persist-credentials: true
+          sparse-checkout: |
+            wld-sentinel-ios
+          sparse-checkout-cone-mode: true
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Install private research backend
+        shell: bash
+        run: python -m pip install -e './private/wld-sentinel-ios/backend[dev]'
+
+      - name: Run private v3.2 research and independent verification
+        shell: bash
+        working-directory: private/wld-sentinel-ios/backend
+        run: |
+          set -euo pipefail
+          OUT='../calibration-results/v32/latest'
+          mkdir -p "$OUT"
+          set +e
+          python tools/run_calibration_v32.py \
+            --output-dir "$OUT" \
+            --cost-bps 12 \
+            > "$OUT/calibration_v32_runner.log" 2>&1
+          RC=$?
+          set -e
+
+          if [ "$RC" -ne 0 ]; then
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('../calibration-results/v32/latest/calibration_run_status_v32.json')
+          if p.exists():
+              d=json.loads(p.read_text(encoding='utf-8'))
+              safe={k:d.get(k) for k in ('stage','state','diagnostic_code','exception_type','returncode','historical_promotion_allowed','forward_shadow_enabled','real_money_enabled','automatic_policy_mutation')}
+          else:
+              safe={'stage':'unknown','state':'failed','status_record_missing':True}
+          print('SANITIZED_V32_FAILURE='+json.dumps(safe,separators=(',',':')))
+          PY
+            ROOT="$(git rev-parse --show-toplevel)"
+            DIAG_REL="wld-sentinel-ios/calibration-diagnostics/v32/run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            mkdir -p "$ROOT/$DIAG_REL"
+            cp "$OUT/calibration_v32_runner.log" "$ROOT/$DIAG_REL/calibration_v32_runner.log"
+            cp "$OUT/calibration_run_status_v32.json" "$ROOT/$DIAG_REL/calibration_run_status_v32.json"
+            cd "$ROOT"
+            git config user.name 'wld-research-public-relay'
+            git config user.email 'actions@users.noreply.github.com'
+            BRANCH="diagnostics/v32-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            git switch -c "$BRANCH" >/dev/null 2>&1
+            git add "$DIAG_REL"
+            git commit -q -m "WLD v3.2 private diagnostic ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+            git push --quiet origin "HEAD:refs/heads/$BRANCH"
+            echo "PRIVATE_DIAGNOSTIC_BRANCH=$BRANCH"
+            exit "$RC"
+          fi
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('../calibration-results/v32/latest/calibration_verification_manifest_v32.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          assert d['passed'] is True
+          assert d['historical_promotion_allowed'] is False
+          assert d['forward_shadow_enabled'] is False
+          assert d['real_money_enabled'] is False
+          assert d['automatic_policy_mutation'] is False
+          print('PRIVATE_V32_RESEARCH_VERIFIED')
+          PY
+
+      - name: Commit verified v3.2 evidence to private audit branch
+        shell: bash
+        working-directory: private
+        run: |
+          set -euo pipefail
+          RESULT_DIR='wld-sentinel-ios/calibration-results/v32/latest'
+          rm -f "$RESULT_DIR/calibration_v32_runner.log"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('wld-sentinel-ios/calibration-results/v32/latest/calibration_verification_manifest_v32.json')
+          d=json.loads(p.read_text(encoding='utf-8'))
+          assert d['passed'] is True
+          assert d['historical_promotion_allowed'] is False
+          assert d['forward_shadow_enabled'] is False
+          assert d['real_money_enabled'] is False
+          PY
+          git config user.name 'wld-research-public-relay'
+          git config user.email 'actions@users.noreply.github.com'
+          RESULT_BRANCH="research/v32-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$RESULT_BRANCH"
+          git add "$RESULT_DIR"
+          git commit -m "WLD v3.2 verified research evidence ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          git push origin "HEAD:refs/heads/$RESULT_BRANCH"
+          echo "VERIFIED_PRIVATE_V32_BRANCH=$RESULT_BRANCH"
+
+      - name: Public safety assertion
+        shell: bash
+        run: |
+          echo 'PASS: v3.2 research completed; detailed evidence remains private.'
+          echo 'PASS: historical promotion, forward shadow and real-money trading remain disabled.'
