@@ -51,7 +51,11 @@ jobs:
         env:
           BINANCE_API_KEY: ''
           BINANCE_API_SECRET: ''
-          EXECUTION_TEST_ORDER_ENABLED: 'false'
+          BINANCE_ANALYTICS_API_KEY: ''
+          BINANCE_ANALYTICS_API_SECRET: ''
+          BINANCE_TRADE_API_KEY: ''
+          BINANCE_TRADE_API_SECRET: ''
+          EXECUTION_REAL_ORDER_ENABLED: 'false'
           CLIENT_ACCESS_TOKEN: ''
         run: |
           set +e
@@ -94,7 +98,7 @@ jobs:
           git config user.name 'wld-ci-relay'
           git config user.email 'wld-ci-relay@users.noreply.github.com'
           git switch -c "$branch"
-          git add -f .ci/live-copilot/
+          git add --sparse -f .ci/live-copilot/
           git commit -m "Live Copilot CI diagnostics ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
           git push origin "$branch"
           echo "FAIL: private diagnostics branch created: $branch"
@@ -106,4 +110,4 @@ jobs:
         run: |
           echo 'PASS: private Live Copilot compile, full backend tests and container build completed.'
           echo 'PASS: no Binance credential, trade signal, account data or private source artifact was published.'
-          echo 'PASS: real-order execution remains outside this relay.'
+          echo 'PASS: Futures TRADE credential variables were empty and real-order runtime remained disabled.'
