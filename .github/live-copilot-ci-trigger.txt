@@ -1,4 +1,4 @@
 WLD Live Copilot CI relay trigger
 private_ref=agent/wld-live-copilot-v1
-private_head=4e63727cda18465981113cc41b22ed2160a48a3b
-requested_at=2026-08-12T10:11:30-06:00
+private_head=855d84ba4755cc7d44fa4cad399db66ff3fbe6b3
+requested_at=2026-08-12T10:20:00-06:00
