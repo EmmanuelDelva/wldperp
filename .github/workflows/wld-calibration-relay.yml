@@ -165,3 +165,65 @@ jobs:
         run: |
           echo 'PASS: compute completed; evidence remains in the private repository.'
           echo 'PASS: no live trading was enabled.'
+
+
+  # Genuine monthly repository activity prevents GitHub's 60-day public-repo
+  # inactivity disable. Never create a fictitious success: publish the actual
+  # upstream job result (including failures) without private market data.
+  audit-status:
+    name: Record actual monthly relay outcome
+    needs: [calibrate]
+    if: ${{ always() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout public repository (status only)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+      - name: Commit truthful execution status to main
+        shell: bash
+        env:
+          UPSTREAM_RESULT: ${{ needs.calibrate.result }}
+          RELAY_NAME: "WLD Calibration Public Relay"
+          STATUS_FILE: ".github/relay-status/v31.json"
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          result = os.environ["UPSTREAM_RESULT"]
+          if result not in ("success", "failure", "cancelled", "skipped"):
+              raise SystemExit("Unrecognized upstream result")
+          payload = {
+              "workflow": os.environ["RELAY_NAME"],
+              "result": result,
+              "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_url": (
+                  f"https://github.com/{os.environ['GITHUB_REPOSITORY']}"
+                  f"/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+              ),
+              "visibility": "public operational metadata only",
+          }
+          path = Path(os.environ["STATUS_FILE"])
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "$STATUS_FILE"
+          git commit -m "WLD relay status: $RELAY_NAME $UPSTREAM_RESULT run-$GITHUB_RUN_ID"
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:main"; then
+              echo "STATUS_COMMITTED_AND_VERIFIABLE"
+              exit 0
+            fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "Failed to publish genuine relay status after three attempts" >&2
+          exit 1
